@@ -13,40 +13,29 @@ import pandas as pd
 
 # Defaults of possible argument parameters
 #    Physical setup
-e0 = 0.1         # center of eccentricity kernel
-e0_std = 0.001   # standard deviation of eccentricity kernel
-m0 = 10          # initial mass in scatter belt in Earth masses
+eMax = 0.25      # maximum eccentricity for grid
 alpha = 11/6     # size distribution power (Dohnanyi Law, 1969)
-
-#    Integration
-t_tot = 1e5             # total time of integration
-dt_min = 10             # minimum timestep length
-rate_cutoff = -10       # log_10(minimum collision rate tracked)
-badr_cutoff = 99.5        # percentage of cells allowed to be underresolved
+q = 0
 
 #    Numbers of gridpoints
 gps = 80    # gridpoints in sizd
 gpe = 100   # gridpoints in ecc. 
 
 # this script takes the following command line arguments:
-#    -e --e0 (default 0.1)
-#    -m --m0 (default 1e2)
+#    -e --emax (default 0.25)
+#    -q --break (default 0)
 #    -a --alpha (default 11/6)
-#    -t --t_tot (default 1e6)
-#    -d --dt_min (default 100)
-#    -p --badr_cutoff (default 98)
-#    -r --rate_cutoff (default -10)
 #    -ge --gpe (default 100)
 #    -gs --gps (default 80)
 
 # set arguments
 argv = sys.argv  
 # set help message
-arg_help = '{0} -e <e0> -es <e0_std> -t <time> -d <dt_min> -a <alpha> -m <m0> -p <badr_cutoff> -r <rate_cutoff> -ge <gpe> -gs <gps>'.format(argv[0])
+arg_help = '{0} -e <emax> -q <break> -a <alpha> -ge <gpe> -gs <gps>'.format(argv[0])
 
 try:  # see if arguments are real, accounted for
-    opts, args = getopt.getopt(argv[1:], "h:e:es:t:d:a:m:p:r:ge:gs",
-                                ["help","e0=","e0_std=","t_tot=","dt_min=","alpha=","m0=","badr_cutoff=","rate_cutoff=","gpe=","gps="])
+    opts, args = getopt.getopt(argv[1:], "h:e:q:a:ge:gs",
+                                ["help","eMax=","q=","alpha=","gpe=","gps="])
 except:  # if not, print help message and break
     print(arg_help)
     sys.exit(2)
@@ -56,22 +45,11 @@ for opt, arg in opts:  # go through args, setting the appropriate parameter usin
         print(arg_help)
         sys.exit(2)
     elif opt in ("-e","--e0"):
-        if ',' in arg:
-            e0 = tuple(map(float, arg.split(',')))
-        else:
-            e0 = float(arg)
-    elif opt in ("-t","--t_tot"):
-        t_tot = float(arg)
-    elif opt in ("-d","--dt_min"):
-        dt_min = float(arg)
+        eMax = float(arg)
+    elif opt in ("-q","--break"):
+        q = int(arg)
     elif opt in ("-a","--alpha"):
         alpha = float(arg)
-    elif opt in ("-m","--m0"):
-        m0 = float(arg)
-    elif opt in ("-p","--badr_cutoff"):
-        badr_cutoff = float(arg)
-    elif opt in ("-r","--rate_cutoff"):
-        rate_cutoff = float(arg)
     elif opt in ("-ge","--gpe"):
         gpe = int(arg)
     elif opt in ("-gs","--gps"):
@@ -110,7 +88,6 @@ sMin = -4         # log sizes [cm]
 sMax = 8
 
 eMin = 0          # eccentricities 
-eMax = e0 + .05
 
 num_colls = gps*gpe*gpe    # number of total possible collisions
 
