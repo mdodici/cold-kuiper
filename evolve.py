@@ -8,6 +8,7 @@ import pandas as pd
 ######################
 #
 #  Setting variable params
+#       These are more commonly changed and can be set with command-line arguments
 #
 ######################
 
@@ -23,7 +24,7 @@ alpha = 11/6     # size distribution power (Dohnanyi Law, 1969)
 t_tot = 1e5             # total time of integration
 dt_min = 10             # minimum timestep length
 rate_cutoff = -10       # log_10(minimum collision rate tracked)
-badr_cutoff = 99.5        # percentage of cells allowed to be underresolved
+badr_cutoff = 99.5      # percentage of cells allowed to be underresolved
 
 #    Numbers of gridpoints
 gps = 80    # gridpoints in sizd
@@ -31,20 +32,20 @@ gpe = 100   # gridpoints in ecc.
 
 #    Condition to track at timestep or at set times
 track_at_step = False     # if True, tracking will be done when N_i, N_o are updated; if False, at set, evenly-spaced times
-num_track = 1000          # number of times at which to record N, N_i, N_o
+num_track = 1000          # number of times at which to track N, N_i, N_o
 
 # this script takes the following command line arguments:
-#    -e --e0 (default 0.1)
-#    -m --m0 (default 1e2)
-#    -a --alpha (default 11/6)
-#    -t --t_tot (default 1e6)
-#    -d --dt_min (default 100)
-#    -p --badr_cutoff (default 98)
-#    -r --rate_cutoff (default -10)
-#    -ge --gpe (default 100)
-#    -gs --gps (default 80)
-#    -tr --track_at_step (default False)
-#    -tn --track_number (default 1000)
+#    -e --e0 (float; default 0.1; can also be a tuple if multiple ecc. peaks desired)
+#    -m --m0 (float; default 1e2)
+#    -a --alpha (float; default 11/6)
+#    -t --t_tot (float; default 1e6)
+#    -d --dt_min (float; default 100)
+#    -p --badr_cutoff (float; default 99.5)
+#    -r --rate_cutoff (float; default -10)
+#    -ge --gpe (int; default 100)
+#    -gs --gps (int; default 80)
+#    -tr --track_at_step (bool; default False)
+#    -tn --track_number (int; default 1000)
 
 # set arguments
 argv = sys.argv  
@@ -92,6 +93,7 @@ for opt, arg in opts:  # go through args, setting the appropriate parameter usin
 ######################
 #
 #  Setting other parameters/arrays
+#       These should be less-frequently changed
 #
 ######################
 
@@ -313,30 +315,77 @@ def size_succ(s1,s2,e1,e2):
         number[i] = np.append(dist, extra)                           # append these to get log N for each size bin 
     return number
 
+def save_files(N, N_i, N_o, ts, dt, fu, ts_end, it):
+    """
+    Saves arrays, with some total time and iteration number
+
+    In: depends on track_at_step...
+        if track_at_step == True:
+            N -- T-by-gpe-by-gps array; numbers in each cell at up to T >= it timesteps
+            N_i -- ditto; incoming rate at each step 
+            N_o -- ditto; incoming rate at each step
+            ts -- len(T) array; time at each step
+        else:
+            N -- num_track-by-gpe-by-gps array; numbers in each cell at num_track tracking steps
+            N_i -- ditto; incoming rate
+            N_o -- ditto; outgoing rate
+            ts -- len(num_track) array; time at each tracking step
+
+            (note: if KeyboardInterrupt broke up integration, many of the steps will have N, N_i, N_o = 0)
+        ts_end -- float; total time of integration
+        it -- int; number of timesteps taken 
+
+    During: uses pandas to save the arrays of interest as dfs
+
+    Out: none
+    """
+    if track_at_step == True:
+        N = N[:it+1]
+        N_i = N_i[:it+1]
+        N_o = N_o[:it+1]
+        ts = ts[:it+1] 
+
+    fu = fu[:it+1]
+    dt = dt[:it+1]
+    
+    # set up folder to which to save results
+    cwd = os.getcwd()
+    rwd = os.path.join(cwd,r'results')
+    newdir = os.path.join(rwd, 
+                        r'dt-var_alp-%.1f_t-%.1fMyr_e-%i_s-%i_e0-%1.2f_m0-%.0fMe_p-%i_r%i' %(alpha,ts_end/1e6,gpe,gps,e0,m0,badr_cutoff,rate_cutoff))
+    if not os.path.exists(newdir):
+        os.makedirs(newdir)
+    
+    # save results as csv using pandas
+
+    if track_at_step == True:
+        len_of_tracked = it+1
+        
+    else:
+        len_of_tracked = num_track
+        
+    pd.DataFrame(N.reshape(len_of_tracked,gpe*gps)).to_csv('%s/N.csv' %newdir, header=None, index=None)
+    pd.DataFrame(N_i.reshape(len_of_tracked,gpe*gps)).to_csv('%s/N_i.csv' %newdir, header=None, index=None)
+    pd.DataFrame(N_o.reshape(len_of_tracked,gpe*gps)).to_csv('%s/N_o.csv' %newdir, header=None, index=None)    
+    pd.DataFrame(ts).to_csv('%s/ts.csv' %newdir, header=None, index=None)
+    pd.DataFrame(dt).to_csv('%s/dt.csv' %newdir, header=None, index=None)
+    pd.DataFrame(fu).to_csv('%s/fu.csv' %newdir, header=None, index=None)
+
+    #pd.DataFrame(nrem_all).to_csv('%s/nrem.csv' %newdir, header=None, index=None)
+    #pd.DataFrame(idx).to_csv('%s/idx.csv' %newdir, header=None, index=None)
+    #pd.DataFrame(e_succ_flat).to_csv('%s/e_succ.csv' %newdir, header=None, index=None)
+    #pd.DataFrame(esucc_idx).to_csv('%s/e_succ_idx.csv' %newdir, header=None, index=None)
+    #pd.DataFrame(G_flat).to_csv('%s/G.csv' %newdir, header=None, index=None)
+    #pd.DataFrame(R_flat).to_csv('%s/R.csv' %newdir, header=None, index=None)
+    #pd.DataFrame(succdist_flat).to_csv('%s/succ_dist.csv' %newdir, header=None, index=None)
+
+    return
 
 ##################
 #
 #  Filling things
 #
 ##################
-
-# set initial number distribution in size bins
-s_num = size_dist(size,m0,alpha)
-
-# set initial relative distribution in ecc bins
-if isinstance(e0,float) == True:
-    e_numdens_unnorm = 1/np.sqrt(2*np.pi*e0_std**2) * np.exp(-0.5*(eccs-e0)**2/e0_std**2)
-    e_numdens = np.log10(e_numdens_unnorm / np.sum(e_numdens_unnorm))
-else:
-    e_numdens_unnorm = np.zeros(gpe)
-    for i in range(len(e0)):
-        e_numdens_unnorm += 1/np.sqrt(2*np.pi*e0_std**2) * np.exp(-0.5*(eccs-e0[i])**2/e0_std**2)
-        
-    e_numdens_unnorm[np.argmin(abs(min(e0) - eccs)):np.argmin(abs(max(e0) - eccs))] += 0
-    e_numdens = np.log10(e_numdens_unnorm / np.sum(e_numdens_unnorm))
-
-# convolve these distributions into 2D number distribution 
-N_start = np.log10(np.outer(10**e_numdens,10**s_num))
 
 # fill all lookup tables 
 for n in range(gps):
@@ -353,10 +402,33 @@ for n in range(gps):
         if (i == 0) & (n == 0):
             print("Initializing lookup tables...")
 
+# set initial number distribution in size bins
+s_num = size_dist(size,m0,alpha)
+
+# set initial relative distribution in ecc bins
+if isinstance(e0,float) == True:   # if there's just one peak,
+    # create unnormed number distribution in eccentricity as a gaussian around that peak
+    e_num_unnorm = 1/np.sqrt(2*np.pi*e0_std**2) * np.exp(-0.5*(eccs-e0)**2/e0_std**2)
+    # normalize distribution and switch to log n
+    e_num = np.log10(e_num_unnorm / np.sum(e_num_unnorm))
+else:
+    # if there's more than one peak eccentricity
+    e_num_unnorm = np.zeros(gpe)  # created empty array for number distribution
+    for i in range(len(e0)):      # for each peak, add gaussian based on that peak
+        e_num_unnorm += 1/np.sqrt(2*np.pi*e0_std**2) * np.exp(-0.5*(eccs-e0[i])**2/e0_std**2)
+
+    # add some baseline number of particles between the gaussians (default 0)    
+    e_num_unnorm[np.argmin(abs(min(e0) - eccs)):np.argmin(abs(max(e0) - eccs))] += 0
+    # normalize distribution and switch to log n
+    e_num = np.log10(e_num_unnorm / np.sum(e_num_unnorm))
+
+# convolve these distributions into 2D initial number distribution 
+N_start = np.log10(np.outer(10**e_num,10**s_num))
+
         
 #####################
 #
-# Flattening/indexes
+# Flattening and recording in
 #
 #####################
 
@@ -399,157 +471,148 @@ RNS = np.nan_to_num(RNS, nan=-np.inf, neginf=-np.inf)    # make sure there are n
 #
 ##############
 
-if track_at_step == True:
-    N[0] = N_start
-else:
-    N_track[0] = N_start
+if track_at_step == True:    # if we're tracking at every integration (integ.) step
+    N[0] = N_start           #     set the first integ. step based on the calculated starting distribution 
+else:                        # else
+    N_track[0] = N_start     #     set the first tracking step based on the same
 
 N_prev = np.zeros((gpe,gps))
 it = 0
 print("Starting integration!")
-while it < ts_max - 1:
+
+try:  
     
-    #####
-    # Update arrays
-    #####
-    if np.count_nonzero(np.isnan(N_prev)) > 0:     # if there are nans in the 2D number distribution, break
-        print('nans in N[%.i]:'%it,np.count_nonzero(np.isnan(N[it])))
-        break
-    
-    if track_at_step == True:
-        N_now = N[it]                              # create 2D N dist for this step
-    elif it == 0:
-        N_now = N_start
-    else: 
-        N_now = N_prev
-    N_incoming = np.zeros((gpe,gps))           # create empty 2D array for incoming rates for this step
-    N_outgoing = np.zeros((gpe,gps))           # create empty 2D array for incoming rates for this step
+    # try to do the full integration and save files
+    # if taking too long, can KeyboardInterrupt -- will save files wherever you are in integration
+
+    while it < ts_max - 1:
         
-    n1_all = N_now[idx[:,1],idx[:,0]]          # number of bodies for every collision
-    n2_all = N_now[idx[:,3],idx[:,2]]          # number of bullets for every collision
-    nrem_all[it] = R_flat + (n1_all + n2_all)  # current rate of each collision
+        #####
+        # Update arrays
+        #####
+        if np.count_nonzero(np.isnan(N_prev)) > 0:     # if there are nans in the 2D number distribution, break
+            print('nans in N[%.i]:'%it,np.count_nonzero(np.isnan(N[it])))
+            break
+        
+        if track_at_step == True:   # if we are tracking at every integ. step
+            N_now = N[it]           #     set N dist for this step based on recorded previous step
+        elif it == 0:               # else if it is the first step
+            N_now = N_start         #     set N dist for this step based on calculated starting distribution
+        else:                       # else if we are beyond the first step
+            N_now = N_prev          #     set N dist for this step based on (un-recorded) previous step
 
-    # for each collision,
-    for i in np.argwhere(nrem_all[it] > rate_cutoff):      
-        i=i[0]
-    
-        s1_id, e1_id = idx[i,0], idx[i,1]        # indices of 2D bin of body
-        s2_id, e2_id = idx[i,2], idx[i,3]        # indices of 2D bin of bullet
+        N_incoming = np.zeros((gpe,gps))           # create empty 2D array for incoming rates for this step
+        N_outgoing = np.zeros((gpe,gps))           # create empty 2D array for incoming rates for this step
+            
+        n1_all = N_now[idx[:,1],idx[:,0]]          # number of bodies for every collision
+        n2_all = N_now[idx[:,3],idx[:,2]]          # number of bullets for every collision
+        nrem_all[it] = R_flat + (n1_all + n2_all)  # current rate of each collision
 
-        n1 = N_now[e1_id,s1_id]                  # number of bodies
-        n2 = N_now[e2_id,s2_id]                  # number of bullets
+        #####
+        # Fill incoming/outgoing rate arrays
+        #####
 
-        nins_collision = RNS[i] + (n1 + n2)      # rate of insertion of bodies into each size bin from this collision
-        nrem_collision = R_flat[i] + (n1 + n2)   # rate of occurrence of this collision       
+        for i in np.argwhere(nrem_all[it] > rate_cutoff):  # for each collision,    
+            i=i[0]
+        
+            s1_id, e1_id = idx[i,0], idx[i,1]        # indices of 2D bin of body
+            s2_id, e2_id = idx[i,2], idx[i,3]        # indices of 2D bin of bullet
 
-        j = esucc_idx[i].astype(int)             # index of successor e bin
-        N_incoming[j,:] += 10**nins_collision    # add successor number rate to successor e row
+            n1 = N_now[e1_id,s1_id]                  # number of bodies
+            n2 = N_now[e2_id,s2_id]                  # number of bullets
 
-        N_outgoing[e1_id,s1_id] += 10**nrem_collision   # add outflow rate to 2D bin of body
-        N_outgoing[e2_id,s2_id] += 10**nrem_collision   # add outflow rate to 2D bin of bullet
-    
-    #####
-    # Set timestep
-    #####
-    
-    rateN_ratio = np.log10(np.abs(N_incoming - N_outgoing)) - N_now   # calculate log(rate / number) for each 2D bin
-    rateN_ratio[np.abs(rateN_ratio) == np.inf] = -10                  # set infinities to some value 
-    rateN_cut = np.nanpercentile(rateN_ratio,badr_cutoff)             # we only want some percentage of cells to be underresolved
-    dt_proposal = 10**(-rateN_cut)                                    # propose a timestep based on this cutoff
-    
-    dt_it = max(dt_min,dt_proposal)                                   # choose whichever timestep is bigger: proposal or floor
-    #####
-    # Integrate forward
-    #####
-    
-    N_current = 10**N_now                                             # go from log number to number
-    N_next = (N_current + (N_incoming - N_outgoing) * dt_it)          # add and subtract numbers with timestep
-    N_next = N_next.clip(min=0)                                       # cannot have < 0 bodies in any bin
-    N_next[np.isnan(N_next)] = 0                                      # set any nans to 0
-    
-    #####
-    # Update arrays
-    #####
+            nins_collision = RNS[i] + (n1 + n2)      # rate of insertion of bodies into each size bin from this collision
+            nrem_collision = R_flat[i] + (n1 + n2)   # rate of occurrence of this collision       
 
-    dtp[it] = dt_proposal           # record timestep proposed at this step
-    dt[it] = dt_it                  # record timestep used at this step
-    ts[it+1] = ts[it] + dt_it       # record time at start of next step
-    fu[it] = np.count_nonzero(rateN_ratio > rateN_cut)/(gpe*gps)
+            j = esucc_idx[i].astype(int)             # index of successor e bin
+            N_incoming[j,:] += 10**nins_collision    # add successor number rate to successor e row
 
-    if track_at_step == True:
-        N_i[it] = np.log10(N_incoming)  # record incoming rates at this step
-        N_o[it] = np.log10(N_outgoing)  # record outgoing rates at this step
-        N[it+1] = np.log10(N_next)      # record log numbers at start of next step
+            N_outgoing[e1_id,s1_id] += 10**nrem_collision   # add outflow rate to 2D bin of body
+            N_outgoing[e2_id,s2_id] += 10**nrem_collision   # add outflow rate to 2D bin of bullet
+        
+        #####
+        # Set timestep
+        #####
+        
+        net_loss_bins = np.argwhere(N_incoming < N_outgoing)     
+        rateN_ratio = np.log10(np.abs(N_incoming - N_outgoing)) - N_now   # calculate log(rate / number) for each 2D bin
+        rateN_ratio = rateN_ratio[net_loss_bins]                # COMMENT OUT TO CONSIDER ALL BINS for dt_proposal
+        rateN_ratio[np.abs(rateN_ratio) == np.inf] = -10                  # set infinities to some value 
+        rateN_cut = np.nanpercentile(rateN_ratio,badr_cutoff)             # we only want some percentage of cells to be underresolved
+        dt_proposal = 10**(-rateN_cut)                                    # propose a timestep based on this cutoff
+        
+        dt_it = max(dt_min,dt_proposal)                                   # choose whichever timestep is bigger: proposal or floor
+        
+        #####
+        # Integrate forward
+        #####
+        
+        N_current = 10**N_now                                             # go from log number to number
+        N_next = (N_current + (N_incoming - N_outgoing) * dt_it)          # add and subtract numbers with timestep
+        N_next = N_next.clip(min=0)                                       # cannot have < 0 bodies in any bin
+        N_next[np.isnan(N_next)] = 0                                      # set any nans to 0
+        
+        #####
+        # Update arrays
+        #####
 
-    else:
-        tprev = ts[it-1]
-        tnext = ts[it]
-        tracked_ts_instep = np.argwhere((ts_track > tprev) & (ts_track <= tnext))
-        for i in tracked_ts_instep:
-            N_intermed = (N_current + (N_incoming - N_outgoing) * (ts_track[i] - tprev))
-            N_intermed = N_intermed.clip(min=0)
-            N_intermed[np.isnan(N_intermed)] = 0
-            N_track[i] = np.log10(N_intermed)
-            Nitrack[i] = np.log10(N_incoming)
-            Notrack[i] = np.log10(N_outgoing)
+        dtp[it] = dt_proposal           # record timestep proposed at this step
+        dt[it] = dt_it                  # record timestep used at this step
+        ts[it+1] = ts[it] + dt_it       # record time at start of next step
+        fu[it] = np.count_nonzero(rateN_ratio > rateN_cut)/(gpe*gps)
 
-        N_prev = np.log10(N_next)
-    
-    if ts[it] > t_tot:              # if this step was beyond the time of integration, 
-        print("Integration complete. Total t = %1.2E" %ts[it])
-        break                       #    stop
+        if track_at_step == True:
+            N_i[it] = np.log10(N_incoming)  # record incoming rates at this step
+            N_o[it] = np.log10(N_outgoing)  # record outgoing rates at this step
+            N[it+1] = np.log10(N_next)      # record log numbers at start of next step
 
-    if it % 10 == 0:
-        if it == 0:
-            print("Those RuntimeWarnings were expected! First step complete.")
         else:
-            print("Step",it,"complete. t = %1.2E " %ts[it])
+            tprev = ts[it-1]            # time at previous integ. step
+            tnext = ts[it]              # time at this integ. step
+            # determine which tracking steps fall between last integ. step and this one
+            tracked_ts_instep = np.argwhere((ts_track > tprev) & (ts_track <= tnext))
+            # for each of them, 
+            for i in tracked_ts_instep:
+                t_since_int = ts_track[i] - tprev                                     # dt from last integ. step to tracking step 
+                N_intermed = (N_current + (N_incoming - N_outgoing) * t_since_int)    # calculate new N at tracking step
+                N_intermed = N_intermed.clip(min=0)                                   # cannot have < 0 bodies in any bin
+                N_intermed[np.isnan(N_intermed)] = 0                                  # set any nans to 0
 
-    it += 1                         # otherwise, move to next step
+                N_track[i] = np.log10(N_intermed)      # record N at tracking step
+                Nitrack[i] = np.log10(N_incoming)      # record current integ. step inflow rates 
+                Notrack[i] = np.log10(N_outgoing)      # record current integ. step outflow rates
 
-# cut off tracking arrays based on number of timesteps used
-if track_at_step == True:
-    N = N[:it+1]
-    N_i = N_i[:it+1]
-    N_o = N_o[:it+1]
-    ts = ts[:it+1] 
+            N_prev = np.log10(N_next)
+        
+        if ts[it] > t_tot:              # if this step was beyond the planned total time of integration, 
+            print("Integration complete. Total t = %1.2E" %ts[it])
+            break                       #    stop
 
-fu = fu[:it+1]
-dt = dt[:it+1]
+        if it % 10 == 0:                # if this was first or n*10th step,
+            if it == 0:                 #    print message for 1st step
+                print("Those RuntimeWarnings were expected! First step complete.")
+            else:                       #    print message for n*10th step
+                print("Step",it,"complete. t = %1.2E " %ts[it])
 
-print("Saving files...")
-    
-# set up folder to which to save results
-cwd = os.getcwd()
-rwd = os.path.join(cwd,r'results')
-newdir = os.path.join(rwd, 
-                      r'dt-var_alp-%.1f_t-%.1fMyr_e-%i_s-%i_e0-%1.2f_m0-%.0fMe_p-%i_r%i' %(alpha,(t_tot)/1e6,gpe,gps,e0,m0,badr_cutoff,rate_cutoff))
-if not os.path.exists(newdir):
-    os.makedirs(newdir)
-    
-# save results as csv using pandas
+        it += 1     # if ts[it] > t_tot, move to next step
 
-if track_at_step == True:
-    pd.DataFrame(N.reshape(it+1,gpe*gps)).to_csv('%s/N.csv' %newdir, header=None, index=None)
-    pd.DataFrame(N_i.reshape(it+1,gpe*gps)).to_csv('%s/N_i.csv' %newdir, header=None, index=None)
-    pd.DataFrame(N_o.reshape(it+1,gpe*gps)).to_csv('%s/N_o.csv' %newdir, header=None, index=None)
-    pd.DataFrame(ts).to_csv('%s/ts.csv' %newdir, header=None, index=None)
-    pd.DataFrame(dt).to_csv('%s/dt.csv' %newdir, header=None, index=None)
-    pd.DataFrame(fu).to_csv('%s/fu.csv' %newdir, header=None, index=None)
-else:
-    pd.DataFrame(N_track.reshape(num_track,gpe*gps)).to_csv('%s/N.csv' %newdir, header=None, index=None)
-    pd.DataFrame(Nitrack.reshape(num_track,gpe*gps)).to_csv('%s/N_i.csv' %newdir, header=None, index=None)
-    pd.DataFrame(Notrack.reshape(num_track,gpe*gps)).to_csv('%s/N_o.csv' %newdir, header=None, index=None)
-    pd.DataFrame(ts_track).to_csv('%s/ts.csv' %newdir, header=None, index=None)
-    pd.DataFrame(dt).to_csv('%s/dt.csv' %newdir, header=None, index=None)
-    pd.DataFrame(fu).to_csv('%s/fu.csv' %newdir, header=None, index=None)
+    print("Saving files...")
+    if track_at_step == True:
+        save_files(N, N_i, N_o, ts, dt, fu, t_tot, it)
+    else:
+        save_files(N_track, Nitrack, Notrack, ts_track, dt, fu, t_tot, it)
+    print("Done.")
 
-#pd.DataFrame(nrem_all).to_csv('%s/nrem.csv' %newdir, header=None, index=None)
-#pd.DataFrame(idx).to_csv('%s/idx.csv' %newdir, header=None, index=None)
-#pd.DataFrame(e_succ_flat).to_csv('%s/e_succ.csv' %newdir, header=None, index=None)
-#pd.DataFrame(esucc_idx).to_csv('%s/e_succ_idx.csv' %newdir, header=None, index=None)
-#pd.DataFrame(G_flat).to_csv('%s/G.csv' %newdir, header=None, index=None)
-#pd.DataFrame(R_flat).to_csv('%s/R.csv' %newdir, header=None, index=None)
-#pd.DataFrame(succdist_flat).to_csv('%s/succ_dist.csv' %newdir, header=None, index=None)
+except KeyboardInterrupt:
 
-print("Done.")
+    # in case of KeyboardInterrupt, want to save what we have integrated so far
+
+    t_tot = ts[it]
+    print()
+    print("KeyboardInterrupt registered. Integration ended.")
+    print("Saving files...")
+    if track_at_step == True:
+        save_files(N, N_i, N_o, ts, dt, fu, t_tot, it)
+    else:
+        save_files(N_track, Nitrack, Notrack, ts_track, dt, fu, t_tot, it)
+    print("Done.")
