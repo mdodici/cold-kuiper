@@ -1,4 +1,4 @@
-# Size-Eccentricity distribution evolution of a belt of TNOs
+# Evolving the size-eccentricity distribution of a belt of TNOs
 
 We're interested in how the eccentricity and size distribution of a belt of trans-Neptunian objects (TNOs) evolves over time. While previous works have studied how the size distribution of a belt changes with collisions, assuming a constant eccentricity, we will try to understand how their eccentricities evolve simultaneously.
 
