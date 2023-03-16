@@ -8,9 +8,9 @@ We set up a grid in size-eccentricity space and place an initial distribution of
 
 Performing integrations and saving results requires Python 3. Jupyter notebooks are included for user-friendliness. The subdirectory "clean" contains two files -- $\texttt{evolve.py}$ and $\texttt{lookup.py}$. By running the latter, a user will create lookup tables for a grid with some default parameters (or whatever parameters the user passes as arguments). The user can then run $\texttt{evolve.py}$ for a given initial distribution across that grid (again, either based on the defaults or arguments passed in the command line). It is recommended that the user creates a copy of the "clean" subdirectory before running or making changes to either script to, e.g., run a set of integrations with a certain strength law. The lookup table generation script only needs to be run once before the evolve script can be run any number of times, with results saved in a sub-subdirectory "results." 
 
-The notebook $\texttt{1\_evolver\_AT.ipynb}$ provides a notebook version of the evolver. $\texttt{2\_results\_AT.ipynb}$ provides a framework for visualizing the results of integrations, while $\texttt{3\_results\_compare.ipynb}$ allows a user to compare the results of two different runs. 
+The notebook _1_evolver_AT.ipynb_ provides a notebook version of the evolver. _2_results_AT.ipynb_ provides a framework for visualizing the results of integrations, while _3_results_compare.ipynb_ allows a user to compare the results of two different runs. 
 
-Several jupyter notebooks provide other insights, including: details about the creation of the lookup tables ($\texttt{lookup\_table\_details.ipynb}$); an analytic approximation of the highest $e_0$ which can yield substantial circularized mass ($\texttt{eccentricity\_limit.ipynb}$); and details about observed trans-Neptunian objects, including the Cold Classical Kuiper Belt ($\texttt{observed\_TNOs.ipynb}$).
+Several jupyter notebooks provide other insights, including: details about the creation of the lookup tables (_lookup_table_details.ipynb_); an analytic approximation of the highest $e_0$ which can yield substantial circularized mass (_eccentricity_limit.ipynb_); and details about observed trans-Neptunian objects, including the Cold Classical Kuiper Belt (_observed_TNOs.ipynb_).
 
 ### Science question
 
