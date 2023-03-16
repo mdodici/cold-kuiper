@@ -4,7 +4,15 @@ We're interested in how the eccentricity and size distribution of a belt of tran
 
 We set up a grid in size-eccentricity space and place an initial distribution of bodies on this grid. We can calculate the collision rate between two bodies at any given points on this grid, as well the center-of-mass eccentricity and the size distribution of the fragments. With this information, we can evolve our initial distribution forward. At each timestep, we take the current distribution and compute an outflow and inflow rate of bodies into each cell based on the rate of collisions that cell is involved in (for outflow) and the distributed fragments of bigger bodies being broken (for inflow). With this, we determine an appropriate $dt$ for this timestep and take a step forward and repeat. 
 
+### Structure
 
+Performing integrations and saving results requires Python 3. Jupyter notebooks are included for user-friendliness. The subdirectory "clean" contains two files -- $\texttt{evolve.py}$ and $\texttt{lookup.py}$. By running the latter, a user will create lookup tables for a grid with some default parameters (or whatever parameters the user passes as arguments). The user can then run $\texttt{evolve.py}$ for a given initial distribution across that grid (again, either based on the defaults or arguments passed in the command line). It is recommended that the user creates a copy of the "clean" subdirectory before running or making changes to either script to, e.g., run a set of integrations with a certain strength law. The lookup table generation script only needs to be run once before the evolve script can be run any number of times, with results saved in a sub-subdirectory "results." 
+
+The notebook $\texttt{1_evolver_AT.ipynb}$ provides a notebook version of the evolver. $\texttt{2_results_AT.ipynb}$ provides a framework for visualizing the results of integrations, while $\texttt{3_results_compare.ipynb}$ allows a user to compare the results of two different runs. 
+
+Several jupyter notebooks provide other insights, including: details about the creation of the lookup tables ($\texttt{lookup_table_details.ipynb}$); an analytic approximation of the highest $e_0$ which can yield substantial circularized mass ($\texttt{eccentricity_limit.ipynb}$); and details about observed trans-Neptunian objects, including the Cold Classical Kuiper Belt ($\texttt{observed_TNOs.ipynb}$).
+
+### Science question
 
 This model is created to test an alternative formation pathway for the cold classical Kuiper Belt (CCKB). It is typically understood that the CCKB -- a relatively flat, circular kernel of the Kuiper Belt -- formed *in situ* from a disk of material at $42-47\text{ au}$. This puts constraints on the dynamical history of the outer solar system, including on the presence of a ninth planet today or in the past. However, we know the main protoplanetary nebula of the solar system must have stopped at $\sim 30 \text{ au}$ in order to stop the migration of Neptune; the cause of a gap between this edge and the CCKB-forming disk is not well understood. 
 
