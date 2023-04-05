@@ -76,7 +76,7 @@ alp_sun = r_s/(sma_cm)   # alpha, defined in Goldreich et al as solar radius / S
 v_kep = np.sqrt(G/sma) * (1.5e13/3.15e7)     # keplerian velocity in cm s^-1
 
 # Breaking energy law constants
-A_stg = 2e7       # strength constant A in erg g^-1
+A_stg = 5e7       # strength constant A in erg g^-1
 B_stg = 3.3e-8    # strength constant B
 s0 = 0            # size_0 of strength eq (1 cm in log cm)
 alp_stg = -0.3    # strength constant alpha

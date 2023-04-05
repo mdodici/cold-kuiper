@@ -3,7 +3,7 @@ import sys
 import getopt
 import time
 import numpy as np
-
+import multiprocessing as mp
 
 ######################
 #
@@ -25,6 +25,7 @@ t_tot = 1e5             # total time of integration
 dt_min = 10             # minimum timestep length
 rate_cutoff = -10       # log_10(minimum collision rate tracked)
 badr_cutoff = 99.5      # percentage of cells allowed to be underresolved
+num_cores = 5           # number of cores to use for multiprocessing
 
 #    Numbers of gridpoints
 eMax = 0.2  # maximum eccentricity on grid **MUST MATCH THAT USED FOR lookup.py**
@@ -47,15 +48,16 @@ num_track = 1000          # number of times at which to track N, N_i, N_o
 #    -gs --gps (int; default 80)
 #    -tr --track_at_step (bool; default False)
 #    -tn --track_number (int; default 1000)
+#    -c  --cores (int; default 5)
 
 # set arguments
 argv = sys.argv  
 # set help message
-arg_help = '{0} -e <e0> -es <e0_std> -em <emax> -t <time> -d <dt_min> -a <alpha> -m <m0> -p <badr_cutoff> -r <rate_cutoff> -ge <gpe> -gs <gps> -tr <track_at_step> -tn <track_number>'.format(argv[0])
+arg_help = '{0} -e <e0> -es <e0_std> -em <emax> -t <time> -d <dt_min> -a <alpha> -m <m0> -p <badr_cutoff> -r <rate_cutoff> -ge <gpe> -gs <gps> -tr <track_at_step> -tn <track_number> -c <cores>'.format(argv[0])
 
 try:  # see if arguments are real, accounted for
-    opts, args = getopt.getopt(argv[1:], "h:e:es:em:t:d:a:m:p:r:ge:gs:tr:tn",
-                                ["help","e0=","e0_std=","eMax=","t_tot=","dt_min=","alpha=","m0=","badr_cutoff=","rate_cutoff=","gpe=","gps=","track_at_step=","track_number="])
+    opts, args = getopt.getopt(argv[1:], "h:e:es:em:t:d:a:m:p:r:ge:gs:tr:tn:c",
+                                ["help","e0=","e0_std=","eMax=","t_tot=","dt_min=","alpha=","m0=","badr_cutoff=","rate_cutoff=","gpe=","gps=","track_at_step=","track_number=","cores="])
 except:  # if not, print help message and break
     print(arg_help)
     sys.exit(2)
@@ -93,6 +95,8 @@ for opt, arg in opts:  # go through args, setting the appropriate parameter usin
         track_at_step = bool(arg)
     elif opt in ("-tn","--track_number"):
         num_track = int(arg)
+    elif opt in ("-c","--cores"):
+        num_cores = int(arg)
 
 
 ######################
@@ -284,7 +288,6 @@ RNS = np.load('lookup/RNS.npy')
 R_flat = np.load('lookup/R_flat.npy')
 esucc_idx = np.load('lookup/esucc_idx.npy')
 
-
 ##############
 #
 # Integration
@@ -326,9 +329,6 @@ try:
             N_now = N_start         #     set N dist for this step based on calculated starting distribution
         else:                       # else if we are beyond the first step
             N_now = N_prev          #     set N dist for this step based on (un-recorded) previous step
-
-        N_incoming = np.zeros((gpe,gps))           # create empty 2D array for incoming rates for this step
-        N_outgoing = np.zeros((gpe,gps))           # create empty 2D array for incoming rates for this step
             
         n1_all = N_now[idx[:,1],idx[:,0]]          # number of bodies for every collision
         n2_all = N_now[idx[:,3],idx[:,2]]          # number of bullets for every collision
@@ -338,24 +338,72 @@ try:
         # Fill incoming/outgoing rate arrays
         #####
 
-        for i in np.argwhere(nrem_all[it] > rate_cutoff):  # for each collision,    
-            i=i[0]
+        relevant_collisions = np.argwhere(nrem_all[it] > rate_cutoff)
+        indices_splits = np.linspace(0,len(relevant_collisions),num_cores).astype(int)
+        colls_split = np.split(relevant_collisions,indices_splits[1:])
+
+        def add_incoming(collisions):
+            """
+            Function for adding contributions from relevant collisions to incoming/outgoing arrays
+            
+            In: collisions -- array or list of int; indices of collisions to consider
+
+            Out: N_in_array -- 2D array; same shape as N_now; rate of inflow at each cell from these collisions
+            """
+            N_in_array = np.zeros_like(N_now)
+
+            for i in collisions:  # for each collision,    
+                i=i[0]
+            
+                s1_id, e1_id = idx[i,0], idx[i,1]        # indices of 2D bin of body
+                s2_id, e2_id = idx[i,2], idx[i,3]        # indices of 2D bin of bullet
+
+                n1 = N_now[e1_id,s1_id]        # number of bodies
+                n2 = N_now[e2_id,s2_id]        # number of bullets
+
+                nins_collision = RNS[i] + (n1 + n2)      # rate of insertion of bodies into each size bin from this collision
+
+                j = esucc_idx[i].astype(int)             # index of successor e bin
+                N_in_array[j,:] += 10**nins_collision    # add successor number rate to successor e row
+
+            return N_in_array
         
-            s1_id, e1_id = idx[i,0], idx[i,1]        # indices of 2D bin of body
-            s2_id, e2_id = idx[i,2], idx[i,3]        # indices of 2D bin of bullet
+        def add_outgoing(collisions):
+            N_out_array = np.zeros_like(N_now)
 
-            n1 = N_now[e1_id,s1_id]                  # number of bodies
-            n2 = N_now[e2_id,s2_id]                  # number of bullets
+            for i in collisions:  # for each collision,    
+                i=i[0]
+            
+                s1_id, e1_id = idx[i,0], idx[i,1]        # indices of 2D bin of body
+                s2_id, e2_id = idx[i,2], idx[i,3]        # indices of 2D bin of bullet
 
-            nins_collision = RNS[i] + (n1 + n2)      # rate of insertion of bodies into each size bin from this collision
-            nrem_collision = R_flat[i] + (n1 + n2)   # rate of occurrence of this collision       
+                n1 = N_now[e1_id,s1_id]        # number of bodies
+                n2 = N_now[e2_id,s2_id]        # number of bullets
 
-            j = esucc_idx[i].astype(int)             # index of successor e bin
-            N_incoming[j,:] += 10**nins_collision    # add successor number rate to successor e row
+                nrem_collision = R_flat[i] + (n1 + n2)   # rate of occurrence of this collision
 
-            N_outgoing[e1_id,s1_id] += 10**nrem_collision   # add outflow rate to 2D bin of body
-            N_outgoing[e2_id,s2_id] += 10**nrem_collision   # add outflow rate to 2D bin of bullet
-        
+                N_out_array[e1_id,s1_id] += 10**nrem_collision   # add outflow rate to 2D bin of body
+                N_out_array[e2_id,s2_id] += 10**nrem_collision   # add outflow rate to 2D bin of bullet
+            
+            return N_out_array
+
+        if __name__ == '__main__':
+            incomingpool = mp.Pool()
+            outgoingpool = mp.Pool()
+
+            N_incoming = incomingpool.map(add_incoming, colls_split)
+            N_outgoing = outgoingpool.map(add_outgoing, colls_split)
+
+            N_incoming = sum(N_incoming, axis=0)
+            N_outgoing = sum(N_outgoing, axis=0)
+
+            incomingpool.close()
+            incomingpool.join()
+            outgoingpool.close()
+            outgoingpool.join()
+
+        # "Multiprocessing a function and adding results to commonly shared array" on stack overflow by user Ep1c1aN
+
         #####
         # Set timestep
         #####
